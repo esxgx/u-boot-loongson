@@ -5,9 +5,13 @@
 # SPDX-License-Identifier:	GPL-2.0+
 #
 
+ifndef CONFIG_CPU_LOONGSON2
 obj-y	+= cache.o
+endif
 obj-y	+= cache_init.o
+ifndef CONFIG_CPU_LOONGSON2
 obj-y	+= io.o
+endif
 
 obj-$(CONFIG_CMD_BOOTM) += bootm.o
 

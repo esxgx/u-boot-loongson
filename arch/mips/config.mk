@@ -35,10 +35,15 @@ PLATFORM_LDFLAGS	+= -m$(64bit-emul)
 OBJCOPYFLAGS		+= -O $(64bit-bfd)
 endif
 
+ifdef CONFIG_CPU_LOONGSON2
+# hsiangkao: an important FIX for loongson2f
+cpuflags-y += -march=loongson2f -mips3
+else
 cpuflags-$(CONFIG_CPU_MIPS32_R1) += -march=mips32 -Wa,-mips32
 cpuflags-$(CONFIG_CPU_MIPS32_R2) += -march=mips32r2 -Wa,-mips32r2
 cpuflags-$(CONFIG_CPU_MIPS64_R1) += -march=mips64 -Wa,-mips64
 cpuflags-$(CONFIG_CPU_MIPS64_R2) += -march=mips64r2 -Wa,-mips64r2
+endif
 PLATFORM_CPPFLAGS += $(cpuflags-y)
 
 PLATFORM_CPPFLAGS += -D__MIPS__

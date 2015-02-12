@@ -53,7 +53,11 @@ config TARGET_PB1X00
 	select SUPPORTS_CPU_MIPS32_R2
 	select SYS_MIPS_CACHE_INIT_RAM_LOAD
 
-
+config TARGET_YL8089
+	bool "Support yl8089"
+	select SUPPORTS_LITTLE_ENDIAN
+	select SUPPORTS_CPU_MIPS32_R1
+	select SYS_MIPS_CACHE_INIT_RAM_LOAD
 endchoice
 
 source "board/dbau1x00/Kconfig"
@@ -61,6 +65,7 @@ source "board/imgtec/malta/Kconfig"
 source "board/micronas/vct/Kconfig"
 source "board/pb1x00/Kconfig"
 source "board/qemu-mips/Kconfig"
+source "board/lemote/yl8089/Kconfig"
 
 if MIPS
 

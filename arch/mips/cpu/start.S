@@ -124,13 +124,24 @@ reset:
 
 	setup_c0_status STATUS_SET 0
 
+#ifdef CONFIG_CPU_LOONGSON2
+	li t0, (1<<22)
+	mtc0 t0, CP0_STATUS
+#endif
+
 	/* Init Timer */
 	mtc0	zero, CP0_COUNT
 	mtc0	zero, CP0_COMPARE
 
 #ifndef CONFIG_SKIP_LOWLEVEL_INIT
 	/* CONFIG0 register */
+#ifdef CONFIG_CPU_LOONGSON2
+	mfc0	t0, CP0_CONFIG
+	ori	t0, CONF_CM_CMASK & (~CONF_CM_UNCACHED)
+	xori	t0, CONF_CM_CMASK
+#else
 	li	t0, CONF_CM_UNCACHED
+#endif
 	mtc0	t0, CP0_CONFIG
 #endif
 
@@ -158,7 +169,13 @@ reset:
 	 nop
 
 	/* ... and enable them */
+#ifdef CONFIG_CPU_LOONGSON2
+	mfc0	t0, CP0_CONFIG
+	ori		t0, CONF_CM_CMASK & (~CONFIG_SYS_MIPS_CACHE_MODE)
+	xori	t0, CONF_CM_CMASK
+#else
 	li	t0, CONFIG_SYS_MIPS_CACHE_MODE
+#endif
 	mtc0	t0, CP0_CONFIG
 #endif
 

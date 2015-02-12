@@ -108,7 +108,12 @@ struct ed {
 
 	struct usb_device *usb_dev;
 	void *purb;
+#ifdef CONFIG_CPU_LOONGSON2
+	void *ptd;
+	__u32 unused[1];
+#else
 	__u32 unused[2];
+#endif
 } __attribute__((aligned(16)));
 typedef struct ed ed_t;
 

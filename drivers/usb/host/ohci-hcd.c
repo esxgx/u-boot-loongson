@@ -4,6 +4,9 @@
  * Interrupt support is added. Now, it has been tested
  * on ULI1575 chip and works well with USB keyboard.
  *
+ * (C) Copyright 2009
+ * Yanhua, Lemote Technology, Inc. <yanh@lemote.com>
+ *
  * (C) Copyright 2007
  * Zhang Wei, Freescale Semiconductor, Inc. <wei.zhang@freescale.com>
  *
@@ -65,6 +68,11 @@
 #define OHCI_CONTROL_INIT \
 	(OHCI_CTRL_CBSR & 0x3) | OHCI_CTRL_IE | OHCI_CTRL_PLE
 
+#ifdef CONFIG_CPU_LOONGSON2
+#include <asm/ls2f/ls2f.h>
+#define  phys2virt(x)  ((x)|0xb0000000) 
+#endif
+
 #ifdef CONFIG_PCI_OHCI
 static struct pci_device_id ohci_pci_ids[] = {
 	{0x10b9, 0x5237},	/* ULI1575 PCI OHCI module ids */
@@ -103,14 +111,19 @@ static struct pci_device_id ehci_pci_ids[] = {
 # define m32_swap(x) cpu_to_le32(x)
 #endif /* CONFIG_SYS_OHCI_BE_CONTROLLER */
 
+/*
+ * These variables should be per-controller allocated
+ */
 /* global ohci_t */
 static ohci_t gohci;
 /* this must be aligned to a 256 byte boundary */
 struct ohci_hcca ghcca[1];
+struct ohci_hcca *pghcca[1];
 /* a pointer to the aligned storage */
 struct ohci_hcca *phcca;
 /* this allocates EDs for all possible endpoints */
 struct ohci_device ohci_dev;
+struct ohci_device *cp_ohci_dev;
 /* device which was disconnected */
 struct usb_device *devgone;
 
@@ -600,11 +613,19 @@ static int ep_link(ohci_t *ohci, ed_t *edi)
 	switch (ed->type) {
 	case PIPE_CONTROL:
 		ed->hwNextED = 0;
+#ifdef CONFIG_CPU_LOONGSON2
+		if (ohci->ed_controltail == NULL)
+			ohci_writel(tobus(ed), &ohci->regs->ed_controlhead);
+		else
+			ohci->ed_controltail->hwNextED =
+						   m32_swap((unsigned long)tobus(ed));
+#else
 		if (ohci->ed_controltail == NULL)
 			ohci_writel(ed, &ohci->regs->ed_controlhead);
 		else
 			ohci->ed_controltail->hwNextED =
 						   m32_swap((unsigned long)ed);
+#endif
 
 		ed->ed_prev = ohci->ed_controltail;
 		if (!ohci->ed_controltail && !ohci->ed_rm_list[0] &&
@@ -617,11 +638,19 @@ static int ep_link(ohci_t *ohci, ed_t *edi)
 
 	case PIPE_BULK:
 		ed->hwNextED = 0;
+#ifdef CONFIG_CPU_LOONGSON2
+		if (ohci->ed_bulktail == NULL)
+			ohci_writel(tobus(ed), &ohci->regs->ed_bulkhead);
+		else
+			ohci->ed_bulktail->hwNextED =
+						   m32_swap((unsigned long)tobus(ed));
+#else
 		if (ohci->ed_bulktail == NULL)
 			ohci_writel(ed, &ohci->regs->ed_bulkhead);
 		else
 			ohci->ed_bulktail->hwNextED =
 						   m32_swap((unsigned long)ed);
+#endif
 
 		ed->ed_prev = ohci->ed_bulktail;
 		if (!ohci->ed_bulktail && !ohci->ed_rm_list[0] &&
@@ -641,6 +670,17 @@ static int ep_link(ohci_t *ohci, ed_t *edi)
 
 		for (i = 0; i < ep_rev(6, interval); i += inter) {
 			inter = 1;
+#ifdef CONFIG_CPU_LOONGSON2
+			for (ed_p = &(ohci->hcca->int_table[\
+						ep_rev(5, i) + int_branch]);
+				(*ed_p != 0) &&
+				(((ed_t *)ed_p)->int_interval >= interval);
+				ed_p = &(((ed_t *)uncached(ed_p))->hwNextED))
+					inter = ep_rev(6,
+						 ((ed_t *)ed_p)->int_interval);
+			ed->hwNextED = *(__u32*)uncached(ed_p);
+			*(__u32*)uncached(ed_p) = m32_swap((unsigned long)tobus(ed));
+#else
 			for (ed_p = &(ohci->hcca->int_table[\
 						ep_rev(5, i) + int_branch]);
 				(*ed_p != 0) &&
@@ -650,6 +690,7 @@ static int ep_link(ohci_t *ohci, ed_t *edi)
 						 ((ed_t *)ed_p)->int_interval);
 			ed->hwNextED = *ed_p;
 			*ed_p = m32_swap((unsigned long)ed);
+#endif
 		}
 		break;
 	}
@@ -666,14 +707,14 @@ static void periodic_unlink(struct ohci *ohci, volatile struct ed *ed,
 		__u32	*ed_p = &ohci->hcca->int_table [index];
 
 		/* ED might have been unlinked through another path */
-		while (*ed_p != 0) {
+		while (*(__u32 *)uncached(ed_p) != 0) {
 			if (((struct ed *)
-					m32_swap((unsigned long)ed_p)) == ed) {
-				*ed_p = ed->hwNextED;
+					uncached(m32_swap((unsigned long)ed_p))) == ed) {
+				*(__u32*)uncached(ed_p) = ed->hwNextED;
 				break;
 			}
 			ed_p = &(((struct ed *)
-				     m32_swap((unsigned long)ed_p))->hwNextED);
+				     uncached(m32_swap((unsigned long)ed_p)))->hwNextED);
 		}
 	}
 }
@@ -706,9 +747,10 @@ static int ep_unlink(ohci_t *ohci, ed_t *edi)
 		if (ohci->ed_controltail == ed) {
 			ohci->ed_controltail = ed->ed_prev;
 		} else {
-			((ed_t *)m32_swap(
-			    *((__u32 *)&ed->hwNextED)))->ed_prev = ed->ed_prev;
+			((ed_t *)uncached(m32_swap(
+			    *((__u32 *)&ed->hwNextED))))->ed_prev = ed->ed_prev;
 		}
+		//((td_t*)ed->ptd)->usb_dev = NULL;
 		break;
 
 	case PIPE_BULK:
@@ -718,7 +760,11 @@ static int ep_unlink(ohci_t *ohci, ed_t *edi)
 				ohci_writel(ohci->hc_control,
 					    &ohci->regs->control);
 			}
+#ifndef CONFIG_CPU_LOONGSON2
 			ohci_writel(m32_swap(*((__u32 *)&ed->hwNextED)),
+#else
+			ohci_writel(m32_swap(*((__u32 *)uncached(&ed->hwNextED))),
+#endif
 			       &ohci->regs->ed_bulkhead);
 		} else {
 			ed->ed_prev->hwNextED = ed->hwNextED;
@@ -726,9 +772,15 @@ static int ep_unlink(ohci_t *ohci, ed_t *edi)
 		if (ohci->ed_bulktail == ed) {
 			ohci->ed_bulktail = ed->ed_prev;
 		} else {
+#ifdef CONFIG_CPU_LOONGSON2
+			((ed_t *)uncached(m32_swap(
+					*((__u32 *)&ed->hwNextED))))->ed_prev = ed->ed_prev;
+#else
 			((ed_t *)m32_swap(
 			     *((__u32 *)&ed->hwNextED)))->ed_prev = ed->ed_prev;
+#endif
 		}
+		//((td_t*)ed->ptd)->usb_dev = NULL;
 		break;
 
 	case PIPE_INTERRUPT:
@@ -757,9 +809,15 @@ static ed_t *ep_add_ed(struct usb_device *usb_dev, unsigned long pipe,
 	td_t *td;
 	ed_t *ed_ret;
 	volatile ed_t *ed;
+	static int counter;
 
+#ifdef CONFIG_CPU_LOONGSON2
+	ed = ed_ret = &cp_ohci_dev->ed[(usb_pipeendpoint(pipe) << 1) |
+			(usb_pipecontrol(pipe)? 0: usb_pipeout(pipe))];
+#else
 	ed = ed_ret = &ohci_dev.ed[(usb_pipeendpoint(pipe) << 1) |
 			(usb_pipecontrol(pipe)? 0: usb_pipeout(pipe))];
+#endif
 
 	if ((ed->state & ED_DEL) || (ed->state & ED_URB_DEL)) {
 		err("ep_add_ed: pending delete");
@@ -770,11 +828,16 @@ static ed_t *ep_add_ed(struct usb_device *usb_dev, unsigned long pipe,
 	if (ed->state == ED_NEW) {
 		/* dummy td; end of td list for ed */
 		td = td_alloc(usb_dev);
-		ed->hwTailP = m32_swap((unsigned long)td);
+		ed->hwTailP = m32_swap((unsigned long)tobus(td));
 		ed->hwHeadP = ed->hwTailP;
 		ed->state = ED_UNLINK;
 		ed->type = usb_pipetype(pipe);
+		ed->ptd = td;
+#ifdef CONFIG_CPU_LOONGSON2
+		cp_ohci_dev->ed_cnt++;
+#else
 		ohci_dev.ed_cnt++;
+#endif
 	}
 
 	ed->hwINFO = m32_swap(usb_pipedevice(pipe)
@@ -816,10 +879,19 @@ static void td_fill(ohci_t *ohci, unsigned int info,
 	td_pt = urb_priv->td [index];
 	td_pt->hwNextTD = 0;
 
+#if 0
+	printf("td_fill \n");
+	printf("\t td_pt %x\n", td_pt);
+#endif
+
 	/* fill the old dummy TD */
 	td = urb_priv->td [index] =
 			     (td_t *)(m32_swap(urb_priv->ed->hwTailP) & ~0xf);
 
+#ifdef CONFIG_CPU_LOONGSON2
+	td = urb_priv->td [index] = (td_t*)uncached(td);
+#endif
+	//printf("\t td %x\n", td);
 	td->ed = urb_priv->ed;
 	td->next_dl_td = NULL;
 	td->index = index;
@@ -841,7 +913,11 @@ static void td_fill(ohci_t *ohci, unsigned int info,
 	else
 		td->hwBE = 0;
 
+#ifdef CONFIG_CPU_LOONGSON2
+	td->hwNextTD = m32_swap((unsigned long)tobus(td_pt));
+#else
 	td->hwNextTD = m32_swap((unsigned long)td_pt);
+#endif
 
 	/* append to queue */
 	td->ed->hwTailP = td->hwNextTD;
@@ -877,6 +953,11 @@ static void td_submit_job(struct usb_device *dev, unsigned long pipe,
 		data = buffer;
 	else
 		data = 0;
+#ifdef CONFIG_CPU_LOONGSON2
+	if (data_len) {
+		flush_cache(buffer, data_len);
+	}
+#endif
 
 	switch (usb_pipetype(pipe)) {
 	case PIPE_BULK:
@@ -902,7 +983,12 @@ static void td_submit_job(struct usb_device *dev, unsigned long pipe,
 	case PIPE_CONTROL:
 		/* Setup phase */
 		info = TD_CC | TD_DP_SETUP | TD_T_DATA0;
+#ifdef CONFIG_CPU_LOONGSON2
+		flush_cache(setup, 8);
 		td_fill(ohci, info, setup, 8, dev, cnt++, urb);
+#else
+		td_fill(ohci, info, setup, 8, dev, cnt++, urb);
+#endif
 
 		/* Optional Data phase */
 		if (data_len > 0) {
@@ -969,6 +1055,9 @@ static void check_status(td_t *td_list)
 	__u32      *phwHeadP  = &td_list->ed->hwHeadP;
 	int	   cc;
 
+#ifdef CONFIG_CPU_LOONGSON2
+	phwHeadP = uncached(phwHeadP);
+#endif
 	cc = TD_CC_GET(m32_swap(td_list->hwINFO));
 	if (cc) {
 		err(" USB-error: %s (%x)", cc_to_string[cc], cc);
@@ -1003,8 +1092,14 @@ static td_t *dl_reverse_done_list(ohci_t *ohci)
 	td_list_hc = m32_swap(ohci->hcca->done_head) & 0xfffffff0;
 	ohci->hcca->done_head = 0;
 
+	//printf("dl_reverse_done_list %x\n", td_list_hc);
 	while (td_list_hc) {
+#ifdef CONFIG_CPU_LOONGSON2
+		td_list = (td_t *)uncached(td_list_hc);
+		//printf("\t%x - %x\n", td_list_hc, td_list);
+#else
 		td_list = (td_t *)td_list_hc;
+#endif
 		check_status(td_list);
 		td_list->next_dl_td = td_rev;
 		td_rev = td_list;
@@ -1496,6 +1591,7 @@ int submit_control_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
 			setup);
 	}
 
+	//printf("submit_control_msg device\n");
 	return submit_common_msg(dev, pipe, buffer, transfer_len, setup, 0);
 }
 
@@ -1602,8 +1698,12 @@ static int hc_start(ohci_t *ohci)
 	ohci_writel(0, &ohci->regs->ed_controlhead);
 	ohci_writel(0, &ohci->regs->ed_bulkhead);
 
+#ifndef CONFIG_CPU_LOONGSON2
 	ohci_writel((__u32)ohci->hcca,
 		    &ohci->regs->hcca); /* reset clears this */
+#else
+	ohci_writel(tobus(ohci->hcca), &ohci->regs->hcca); /* a reset clears this */
+#endif
 
 	fminterval = 0x2edf;
 	ohci_writel((fminterval * 9) / 10, &ohci->regs->periodicstart);
@@ -1766,25 +1866,43 @@ int usb_lowlevel_init(int index, enum usb_init_type init, void **controller)
 		return -1;
 #endif
 	memset(&gohci, 0, sizeof(ohci_t));
+#ifdef CONFIG_CPU_LOONGSON2
+	flush_cache((unsigned long)&gohci, sizeof(ohci_t));
+#endif
 
 	/* align the storage */
 	if ((__u32)&ghcca[0] & 0xff) {
 		err("HCCA not aligned!!");
 		return -1;
 	}
+#ifdef CONFIG_CPU_LOONGSON2
+	phcca = uncached(&ghcca[0]);
+	pghcca[0] = phcca;
+#else
 	phcca = &ghcca[0];
+#endif
 	info("aligned ghcca %p", phcca);
 	memset(&ohci_dev, 0, sizeof(struct ohci_device));
 	if ((__u32)&ohci_dev.ed[0] & 0x7) {
 		err("EDs not aligned!!");
 		return -1;
 	}
+#ifdef CONFIG_CPU_LOONGSON2
+	flush_cache(&ohci_dev, sizeof(struct ohci_device));
+	cp_ohci_dev = uncached(&ohci_dev);
+#endif
 	memset(gtd, 0, sizeof(td_t) * (NUM_TD + 1));
 	if ((__u32)gtd & 0x7) {
 		err("TDs not aligned!!");
 		return -1;
 	}
+#ifdef CONFIG_CPU_LOONGSON2
+	flush_cache((unsigned long)gtd, sizeof(td_t) * (NUM_TD + 1));
+	ptd = uncached(gtd);
+#else
 	ptd = gtd;
+#endif
+	printf("ptd %x, gtd %x\n", ptd, gtd);
 	gohci.hcca = phcca;
 	memset(phcca, 0, sizeof(struct ohci_hcca));
 
@@ -1804,6 +1922,9 @@ int usb_lowlevel_init(int index, enum usb_init_type init, void **controller)
 				(pdev >> 11) & 0x1f, (pdev >> 8) & 0x7);
 		pci_read_config_dword(pdev, PCI_BASE_ADDRESS_0, &base);
 		printf("OHCI regs address 0x%08x\n", base);
+#ifdef CONFIG_CPU_LOONGSON2
+		base = phys2virt(base);
+#endif
 		gohci.regs = (struct ohci_regs *)base;
 	} else
 		return -1;

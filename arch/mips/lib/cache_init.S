@@ -98,6 +98,7 @@
  * RETURNS: N/A
  *
  */
+#ifndef CONFIG_CPU_LOONGSON2
 LEAF(mips_cache_reset)
 #ifdef CONFIG_SYS_ICACHE_SIZE
 	li	t2, CONFIG_SYS_ICACHE_SIZE
@@ -193,6 +194,7 @@ LEAF(mips_cache_reset)
 
 3:	jr	ra
 	END(mips_cache_reset)
+#endif
 
 /*
  * dcache_status - get cache status

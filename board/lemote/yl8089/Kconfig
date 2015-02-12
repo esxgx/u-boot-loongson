@@ -1,0 +1,15 @@
+if TARGET_YL8089
+
+config SYS_BOARD
+	default "yl8089"
+
+config SYS_VENDOR
+	default "lemote"
+
+config SYS_SOC
+	default "ls2f"
+
+config SYS_CONFIG_NAME
+	default "yl8089"
+
+endif
