@@ -16,6 +16,10 @@
 
 extern void delay(int microseconds);
 
+extern void _rdmsr(u32, u32 *, u32 *);
+extern void _wrmsr(u32, u32, u32);
+
+#if 0
 static int cs5536_ide_wait(unsigned char sts_bit, int timeout)
 {
 	unsigned char status;
@@ -41,6 +45,7 @@ static int cs5536_ide_wait(unsigned char sts_bit, int timeout)
 
 	return 0;
 }
+#endif
 
 /*
  *  ide test...
@@ -214,9 +219,6 @@ static void cs5536_ide_test(void)
 static void cs5536_ide_init(void)
 {
 	u32	hi, lo;
-	u32	tag, reg;
-	u32	barbase;
-	u32	val;
 	
 	/* 
 	 * multiplexed pins associated with IDE Controller 

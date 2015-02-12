@@ -50,7 +50,7 @@ static struct pci_controller hose;
 void pci_init_board (void)
 {
 	extern void cs5536_init(void);
-	extern void bonito_pci_init(void);
+	extern void init_bonito_pci(struct pci_controller *);
 	cs5536_init();
 
 	init_bonito_pci(&hose);
@@ -70,9 +70,8 @@ int board_early_init_r(void)
 
 int checkboard (void)
 {
-	printf("Board: Lemote YL8089 ");
-	printf("(CPU Speed %d MHz)\n", (int)CPU_CLOCK_RATE/1000000);
-
+#define ___(a,b)		a#b
+	printf(___("Board: Lemote YL8089 (CPU Speed ",CONFIG_CPU_CLK_MHZ) " MHz)\n");
 	return 0;
 }
 

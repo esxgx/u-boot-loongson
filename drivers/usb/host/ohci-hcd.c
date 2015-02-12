@@ -809,7 +809,6 @@ static ed_t *ep_add_ed(struct usb_device *usb_dev, unsigned long pipe,
 	td_t *td;
 	ed_t *ed_ret;
 	volatile ed_t *ed;
-	static int counter;
 
 #ifdef CONFIG_CPU_LOONGSON2
 	ed = ed_ret = &cp_ohci_dev->ed[(usb_pipeendpoint(pipe) << 1) |
@@ -955,7 +954,7 @@ static void td_submit_job(struct usb_device *dev, unsigned long pipe,
 		data = 0;
 #ifdef CONFIG_CPU_LOONGSON2
 	if (data_len) {
-		flush_cache(buffer, data_len);
+		flush_cache((unsigned long)buffer, data_len);
 	}
 #endif
 
@@ -984,7 +983,7 @@ static void td_submit_job(struct usb_device *dev, unsigned long pipe,
 		/* Setup phase */
 		info = TD_CC | TD_DP_SETUP | TD_T_DATA0;
 #ifdef CONFIG_CPU_LOONGSON2
-		flush_cache(setup, 8);
+		flush_cache((unsigned long)setup, 8);
 		td_fill(ohci, info, setup, 8, dev, cnt++, urb);
 #else
 		td_fill(ohci, info, setup, 8, dev, cnt++, urb);
@@ -1056,7 +1055,7 @@ static void check_status(td_t *td_list)
 	int	   cc;
 
 #ifdef CONFIG_CPU_LOONGSON2
-	phwHeadP = uncached(phwHeadP);
+	phwHeadP = (__typeof(phwHeadP))uncached(phwHeadP);
 #endif
 	cc = TD_CC_GET(m32_swap(td_list->hwINFO));
 	if (cc) {
@@ -1876,7 +1875,7 @@ int usb_lowlevel_init(int index, enum usb_init_type init, void **controller)
 		return -1;
 	}
 #ifdef CONFIG_CPU_LOONGSON2
-	phcca = uncached(&ghcca[0]);
+	phcca = (__typeof(phcca))uncached(&ghcca[0]);
 	pghcca[0] = phcca;
 #else
 	phcca = &ghcca[0];
@@ -1888,8 +1887,8 @@ int usb_lowlevel_init(int index, enum usb_init_type init, void **controller)
 		return -1;
 	}
 #ifdef CONFIG_CPU_LOONGSON2
-	flush_cache(&ohci_dev, sizeof(struct ohci_device));
-	cp_ohci_dev = uncached(&ohci_dev);
+	flush_cache((unsigned long)&ohci_dev, sizeof(struct ohci_device));
+	cp_ohci_dev = (__typeof(cp_ohci_dev))uncached(&ohci_dev);
 #endif
 	memset(gtd, 0, sizeof(td_t) * (NUM_TD + 1));
 	if ((__u32)gtd & 0x7) {
@@ -1898,11 +1897,13 @@ int usb_lowlevel_init(int index, enum usb_init_type init, void **controller)
 	}
 #ifdef CONFIG_CPU_LOONGSON2
 	flush_cache((unsigned long)gtd, sizeof(td_t) * (NUM_TD + 1));
-	ptd = uncached(gtd);
+	ptd = (__typeof(ptd))uncached(gtd);
+#if	0
+	printf("ptd %x, gtd %x\n", ptd, gtd);
+#endif
 #else
 	ptd = gtd;
 #endif
-	printf("ptd %x, gtd %x\n", ptd, gtd);
 	gohci.hcca = phcca;
 	memset(phcca, 0, sizeof(struct ohci_hcca));
 

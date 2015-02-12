@@ -187,7 +187,11 @@ static void pci_isa_write_reg(int reg, u32 value)
 
 	_rdmsr(GLCP_MSR_REG(GLCP_SOFT_COM), &hi, &lo);
 	softcom = lo;
-	
+
+	#if 1
+	(void)softcom;
+	#endif
+
 	switch(reg){
 		case PCI_COMMAND:
 			// command

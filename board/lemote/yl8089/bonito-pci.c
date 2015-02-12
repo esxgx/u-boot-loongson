@@ -27,9 +27,11 @@ volatile unsigned int *pciconfigdata;
  *	Access PCI Configuration Register for VR4131
  */
 
-static int bonito_pci_config_access(u8 access_type, u32 dev, u32 reg,
+static int bonito_pci_config_access(u8 access_type, pci_dev_t dev, u32 reg,
 				     u32 * data)
 {
+	extern u32 cs5536_pci_conf_read4(int, int);
+	extern void cs5536_pci_conf_write4(int, int, u32);
 	u32 bus;
 	u32 device;
 	u32 function;
@@ -75,7 +77,7 @@ static int bonito_pci_config_access(u8 access_type, u32 dev, u32 reg,
 	return (0);
 }
 
-static int bonito_pci_read_config_byte(u32 hose, u32 dev, u32 reg, u8 * val)
+static int bonito_pci_read_config_byte(struct pci_controller *pci, pci_dev_t dev, int reg, u8 *val)
 {
 	u32 data;
 
@@ -88,7 +90,7 @@ static int bonito_pci_read_config_byte(u32 hose, u32 dev, u32 reg, u8 * val)
 }
 
 
-static int bonito_pci_read_config_word(u32 hose, u32 dev, u32 reg, u16 * val)
+static int bonito_pci_read_config_word(struct pci_controller *pci, pci_dev_t dev, int reg, u16 *val)
 {
 	u32 data;
 
@@ -104,8 +106,7 @@ static int bonito_pci_read_config_word(u32 hose, u32 dev, u32 reg, u16 * val)
 }
 
 
-static int bonito_pci_read_config_dword(u32 hose, u32 dev, u32 reg,
-					 u32 * val)
+static int bonito_pci_read_config_dword(struct pci_controller *pci, pci_dev_t dev, int reg, u32 *val)
 {
 	u32 data = 0;
 
@@ -120,7 +121,7 @@ static int bonito_pci_read_config_dword(u32 hose, u32 dev, u32 reg,
 	return (0);
 }
 
-static int bonito_pci_write_config_byte(u32 hose, u32 dev, u32 reg, u8 val)
+static int bonito_pci_write_config_byte(struct pci_controller *pci, pci_dev_t dev, int reg, u8 val)
 {
 	u32 data = 0;
 
@@ -137,7 +138,7 @@ static int bonito_pci_write_config_byte(u32 hose, u32 dev, u32 reg, u8 val)
 }
 
 
-static int bonito_pci_write_config_word(u32 hose, u32 dev, u32 reg, u16 val)
+static int bonito_pci_write_config_word(struct pci_controller *pci, pci_dev_t dev, int reg, u16 val)
 {
 	u32 data = 0;
 
@@ -156,7 +157,7 @@ static int bonito_pci_write_config_word(u32 hose, u32 dev, u32 reg, u16 val)
 	return 0;
 }
 
-static int bonito_pci_write_config_dword(u32 hose, u32 dev, u32 reg, u32 val)
+static int bonito_pci_write_config_dword(struct pci_controller *pci, pci_dev_t dev, int reg, u32 val)
 {
 	u32 data;
 
@@ -177,7 +178,7 @@ static int bonito_pci_write_config_dword(u32 hose, u32 dev, u32 reg, u32 val)
  *	Initialize Bonito pcib
  */
 
-void bonito_pci_init()
+void bonito_pci_init(void)
 {
 	BONITO_PCICMD = BONITO_PCICMD_MTABORT_CLR| BONITO_PCICMD_SERR_CLR| 
 			BONITO_PCICMD_PERR_CLR| BONITO_PCICMD_TABORT_CLR| BONITO_PCICMD_MABORT_CLR|
