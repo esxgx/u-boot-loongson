@@ -53,7 +53,7 @@ void pci_init_board (void)
 	extern void init_bonito_pci(struct pci_controller *);
 	cs5536_init();
 
-	init_bonito_pci(&hose);
+	bonito_pci_init(&hose);
 }
 #endif
 

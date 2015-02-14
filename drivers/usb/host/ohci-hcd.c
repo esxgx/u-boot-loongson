@@ -70,7 +70,7 @@
 
 #ifdef CONFIG_CPU_LOONGSON2
 #include <asm/ls2f/ls2f.h>
-#define  phys2virt(x)  ((x)|0xb0000000) 
+#include <asm/io.h>
 #endif
 
 #ifdef CONFIG_PCI_OHCI
@@ -1923,10 +1923,11 @@ int usb_lowlevel_init(int index, enum usb_init_type init, void **controller)
 				(pdev >> 11) & 0x1f, (pdev >> 8) & 0x7);
 		pci_read_config_dword(pdev, PCI_BASE_ADDRESS_0, &base);
 		printf("OHCI regs address 0x%08x\n", base);
-#ifdef CONFIG_CPU_LOONGSON2
-		base = phys2virt(base);
-#endif
+#if	0
 		gohci.regs = (struct ohci_regs *)base;
+#else
+		gohci.regs = (struct ohci_regs *)pci_mem_to_virt(pdev, base, 0, MAP_NOCACHE);
+#endif
 	} else
 		return -1;
 #else
