@@ -171,7 +171,7 @@ bonito_pci_init (struct pci_controller *hose)
 
 	// System memory space(simply used for PCIDMA)
 	pci_set_region(hose->regions + 3,
-		0x80000000, 0, 0x80000000, PCI_REGION_MEM | PCI_REGION_SYS_MEMORY);
+		0x80000000, 0x80000000, 0x10000000, PCI_REGION_MEM | PCI_REGION_SYS_MEMORY);
 
 	hose->region_count = 4;
 

@@ -248,6 +248,7 @@
 
 #undef	CONFIG_BOOTARGS
 
+#if 0
 #define CONFIG_EXTRA_ENV_SETTINGS					\
 	"netboot=dhcp;tftp;run netargs; bootm\0"			\
 	"nfsargs=setenv bootargs root=/dev/nfs ip=dhcp\0"		\
@@ -292,6 +293,21 @@
 	"stdout=vga,serial\0"	\
 	"stderr=vga,serial\0"	\
 	""
+#else
+
+#define CONFIG_EXTRA_ENV_SETTINGS					\
+	"stdin=vga,serial\0"	\
+	"stdout=vga,serial\0"	\
+	"stderr=vga,serial\0"	\
+	"busclock=66666666\0"	\
+	"cpuclock=800000000\0"	\
+	"memsize=256\0"							\
+	"highmemsize=768\0"				\
+	"ipaddr=192.168.10.1\0"			\
+	"serverip=192.168.10.2\0"			\
+	""
+#endif
+
 /*#define CONFIG_BOOTCOMMAND	"run flash_local" */
 /*#define CONFIG_BOOTCOMMAND	"run netboot" */
 

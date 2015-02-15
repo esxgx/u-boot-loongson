@@ -78,9 +78,6 @@
 #include <asm/io.h>
 #include <pci.h>
 
-#ifdef CONFIG_CPU_LOONGSON2
-#include <asm/ls2f/ls2f.h>
-#endif
 #define RTL_TIMEOUT	100000
 
 #define ETH_FRAME_LEN		1514
@@ -101,14 +98,8 @@
 #define DEBUG_TX	0	/* set to 1 to enable debug code */
 #define DEBUG_RX	0	/* set to 1 to enable debug code */
 
-#define currticks()	get_timer(0)
-#ifndef CONFIG_CPU_LOONGSON2
 #define bus_to_phys(a)	pci_mem_to_phys((pci_dev_t)dev->priv, a)
 #define phys_to_bus(a)	pci_phys_to_mem((pci_dev_t)dev->priv, a)
-#else
-#define bus_to_phys(a)	pci_io_to_phys((pci_dev_t)dev->priv, a)
-#define phys_to_bus(a)	pci_phys_to_mem((pci_dev_t)dev->priv, a)
-#endif
 
 /* Symbolic offsets to registers. */
 enum RTL8139_registers {
@@ -135,7 +126,7 @@ enum RTL8139_registers {
 	NWayTestReg=0x70,
 	RxCnt=0x72,		/* packet received counter */
 	CSCR=0x74,		/* chip status and configuration register */
-	PhyParm1=0x78,TwisterParm=0x7c,PhyParm2=0x80,	/* undocumented */
+	PhyParm1=0x78,TwisterParm=0x7c,PhyParm2=0x80,	/* ubus_to_physndocumented */
 	/* from 0x84 onwards are a number of power management/wakeup frame
 	 * definitions we will probably never need to know about.  */
 };
@@ -187,8 +178,8 @@ static int ioaddr;
 static unsigned int cur_rx,cur_tx;
 
 /* The RTL8139 can only transmit from a contiguous, aligned memory block.  */
-static unsigned char tx_buffer[TX_BUF_SIZE] __attribute__((aligned(32)));
-static unsigned char rx_ring[RX_BUF_LEN+16] __attribute__((aligned(32)));
+static unsigned char tx_buffer[TX_BUF_SIZE] __attribute__((aligned(4)));
+static unsigned char rx_ring[RX_BUF_LEN+16] __attribute__((aligned(4)));
 
 static int rtl8139_probe(struct eth_device *dev, bd_t *bis);
 static int read_eeprom(int location, int addr_len);
@@ -222,11 +213,11 @@ int rtl8139_initialize(bd_t *bis)
 		if ((devno = pci_find_devices(supported, idx++)) < 0)
 			break;
 
-#if 0
+//#ifdef CONFIG_CPU_LOONGSON2
+//		pci_read_config_dword(devno, PCI_BASE_ADDRESS_0, &iobase);
+//#else
 		pci_read_config_dword(devno, PCI_BASE_ADDRESS_1, &iobase);
-#else
-		pci_read_config_dword(devno, PCI_BASE_ADDRESS_0, &iobase);
-#endif
+//#endif
 		iobase &= ~0xf;
 
 		debug ("rtl8139: REALTEK RTL8139 @0x%x\n", iobase);
@@ -241,7 +232,11 @@ int rtl8139_initialize(bd_t *bis)
 		sprintf (dev->name, "RTL8139#%d", card_number);
 
 		dev->priv = (void *) devno;
+//#ifdef CONFIG_CPU_LOONGSON2
+//		dev->iobase = (int)pci_io_to_phys((pci_dev_t)dev->priv, iobase);
+//#else
 		dev->iobase = (int)bus_to_phys(iobase);
+//#endif
 		dev->init = rtl8139_probe;
 		dev->halt = rtl_disable;
 		dev->send = rtl_transmit;
@@ -482,11 +477,12 @@ static int rtl_poll(struct eth_device *dev)
 	unsigned int ring_offs;
 	unsigned int rx_size, rx_status;
 	int length=0;
-#ifdef CONFIG_CPU_LOONGSON2
-	unsigned char *rxp = (unsigned char *)uncached(rx_ring);
-#endif
 
 	ioaddr = dev->iobase;
+
+#ifdef CONFIG_CPU_LOONGSON2
+#define rx_ring		((u8 *)KSEG1ADDR(rx_ring))
+#endif
 
 	if (inb(ioaddr + ChipCmd) & RxBufEmpty) {
 		return 0;
@@ -500,11 +496,7 @@ static int rtl_poll(struct eth_device *dev)
 
 	ring_offs = cur_rx % RX_BUF_LEN;
 	/* ring_offs is guaranteed being 4-byte aligned */
-#ifdef CONFIG_CPU_LOONGSON2
-	rx_status = le32_to_cpu(*(unsigned int *)(rxp + ring_offs));
-#else
 	rx_status = le32_to_cpu(*(unsigned int *)(rx_ring + ring_offs));
-#endif
 	rx_size = rx_status >> 16;
 	rx_status &= 0xffff;
 
@@ -521,23 +513,14 @@ static int rtl_poll(struct eth_device *dev)
 		int semi_count = RX_BUF_LEN - ring_offs - 4;
 		unsigned char rxdata[RX_BUF_LEN];
 
-#ifdef CONFIG_CPU_LOONGSON2
-		memcpy(rxdata, rxp + ring_offs + 4, semi_count);
-		memcpy(&(rxdata[semi_count]), rxp, rx_size-4-semi_count);
-#else
 		memcpy(rxdata, rx_ring + ring_offs + 4, semi_count);
 		memcpy(&(rxdata[semi_count]), rx_ring, rx_size-4-semi_count);
-#endif
 
 		NetReceive(rxdata, length);
 		debug_cond(DEBUG_RX, "rx packet %d+%d bytes",
 			semi_count, rx_size-4-semi_count);
 	} else {
-#ifdef CONFIG_CPU_LOONGSON2
-		NetReceive(rxp + ring_offs + 4, length);
-#else
 		NetReceive(rx_ring + ring_offs + 4, length);
-#endif
 		debug_cond(DEBUG_RX, "rx packet %d bytes", rx_size-4);
 	}
 	flush_cache((unsigned long)rx_ring, RX_BUF_LEN);
