@@ -159,7 +159,7 @@ cache_flush_d2way:
 1:
 cache_init_finish:
 	nop
-	j	ra
+	jr	ra
 	nop
 	.set	pop
 END(mips_cache_reset)
@@ -195,6 +195,6 @@ LEAF(__asm_invalidate_tlb_all)
 	bne	a3, a2, 1b
 	nop
 
-	j	ra
+	jr	ra
 	nop
 END(__asm_invalidate_tlb_all)

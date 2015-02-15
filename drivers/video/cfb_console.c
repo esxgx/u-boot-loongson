@@ -104,6 +104,13 @@
 #endif
 
 /*
+ * Defines for the SMI 712 driver
+ */
+#ifdef	CONFIG_VIDEO_SM712
+#define VIDEO_FB_16BPP_WORD_SWAP
+#endif
+
+/*
  * Defines for the CT69000 driver
  */
 #ifdef	CONFIG_VIDEO_CT69000

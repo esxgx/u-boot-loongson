@@ -64,7 +64,7 @@ phys_size_t initdram(int board_type)
 
 int board_early_init_r(void)
 {
-	set_io_port_base(0x0);
+	set_io_port_base(0);
 	return 0;
 }
 

@@ -279,6 +279,7 @@ LEAF(lowlevel_init)
 
 #ifdef CONFIG_CPU_UART
 	bal		initserial
+	nop
 #endif
 
 	PRINTSTR("Initializing...\r\n");
@@ -305,7 +306,7 @@ LEAF(lowlevel_init)
 	// DDR2 configuation begins
 	li		t0, DDR2_CONF_CTL_REG_BASE
 	li		t1, 29
-	la		t2, ddr2_reg_data
+	PTR_LA	t2, ddr2_reg_data
 
 mem_reg_write:
 	ld		t3, (t2)
@@ -353,12 +354,12 @@ not_locked:
 	or		t1, 0x0c
 	sw		t1, (t2)
 
-	li		t2, 0xbfe00108;
-	lw		t1, 0(t2);
-	li		a0, 0xffffe0ff;
-	and	t1, a0;
-	ori		t1, 0x0f00;
-	sw		t1, 0(t2);
+	li		t2, 0xbfe00108
+	lw		t1, (t2)
+	li		a0, 0xffffe0ff
+	and	t1, a0
+	ori		t1, 0x0f00
+	sw		t1, (t2)
 
 #if 0
 	/* Add memory test code here */
